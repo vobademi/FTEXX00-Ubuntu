@@ -1,8 +1,8 @@
 #!/bin/bash
 
-# Update packages and install necessary packages
+# Synchronize package list and install necessary packages
 sudo apt update
-sudo apt install dkms linux-headers-$(uname -r)
+sudo apt install dkms linux-headers-$(uname -r) -y
 
 # Rename kernel header for kernel version 6.12 or higher
 KERNEL_MAJOR=$(uname -r | cut -d. -f1)

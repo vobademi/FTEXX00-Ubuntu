@@ -20,7 +20,13 @@ cd debdir/
 find . -type f -not -path "./DEBIAN/*" -exec md5sum {} + | sort -k 2 | sed 's/\.\/\(.*\)/\1/' > DEBIAN/md5sums
 cd ..
 
-# Repack and install the modified debian package
+# Repack the modified debian package
 dpkg-deb -b --root-owner-group debdir libfprint-2-2+custom1.deb
 rm -r debdir
+
+# Synchronize package list and install necessary dependencies
+sudo apt update
+sudo apt install fprintd fprintd-doc libpam-fprintd -y
+
+# Install the modified debian package
 sudo dpkg -i --force-overwrite libfprint-2-2+custom1.deb
