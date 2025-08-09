@@ -1,19 +1,27 @@
 # FTEXX00-Ubuntu
 
-`installspi.sh` and `installlib.sh` are bash scripts to install the SPI module and the proprietary libfprint driver for FTE3600, FTE4800, FTE6600 and FTE6900 fingerprint readers on Ubuntu 24.04.2 LTS (officially supported) and other Debian-based distros.
+`installspi.sh` and `installlib.sh` are bash scripts to install the SPI module and the proprietary libfprint driver for FTE3600, FTE4800, FTE6600 and FTE6900 fingerprint readers on Ubuntu 24.04 LTS (officially supported) and other Debian-based distros.
+
+> ### For Arch Linux, visit corresponding AUR packages:
+>
+> SPI module: [focaltech-spi-dkms](https://aur.archlinux.org/packages/focaltech-spi-dkms)
+>
+> libfprint: [libfprint-ftexx00](https://aur.archlinux.org/packages/libfprint-ftexx00)
 
 > ### ⚠ Warning
 >
 > Debian Stable *bookworm* is not supported. See [Troubleshooting](#troubleshooting) for more details.
 
-### Table of Contents
+## Table of Contents
 
-- [Introduction](#ftexx00-ubuntu)
+- [Introduction](#introduction)
 - [Installation](#installation)
 - [Troubleshooting](#troubleshooting)
 - [Updating and Uninstalling](#updating-and-Uninstalling)
 - [Questions](#questions)
 - [Copying](#copying)
+
+## Introduction
 
 ### installspi.sh
 
@@ -38,18 +46,6 @@
 git clone https://github.com/ftfpteams/ubuntu_spi.git
 ```
 
-> 🛈 Note: This repository currently targets the following commit from *ubuntu_spi*: **d534b7a**
->
-> If this repository falls behind *ubuntu_spi*, you can force `git` to return back to the target commit by:
->
-> ```bash
->
-> cd ubuntu_spi
->
-> git reset --hard d534b7a
->
-> ```
-
 2. Copy `installspi.sh` and `installlib.sh` into the repository's root directory. The directory tree should look like this:
 ```bash
 ./ubuntu_spi
@@ -73,7 +69,9 @@ chmod +x installlib.sh installspi.sh
 ./installspi.sh
 ```
 
-&nbsp;&nbsp;&nbsp;↳ ***Advanced configuration for UEFI Secure Boot (Skip to step 5 if Secure Boot disabled)***
+5. ***Configure for UEFI Secure Boot (Skip to step 6 if Secure Boot disabled)***
+
+> ✓ Tip: This step is for initial installation only. If you're updating, you can skip this section!
 
 If you have Secure Boot enabled on your PC, you might see this line after running `installspi.sh`:
 
@@ -81,13 +79,11 @@ If you have Secure Boot enabled on your PC, you might see this line after runnin
 modprobe: ERROR: could not insert 'focal_spi': Key was rejected by service
 ```
 
-This means that you need to enroll a signing key to make the module trusted by Secure Boot.
+This means that you need to enroll a signing key to make the module trusted by Secure Boot. You will see the prompt *Configuring Secure Boot* for the first time:
 
-You might see a prompt *Configuring Secure Boot* for the first time:
+i. Select `Ok`. Enter a password for Secure Boot.
 
-4a. Scroll down and select `Ok`. Enter a password for Secure Boot.
-
-> ✓ Tip: If you didn't see a prompt *Configuring Secure Boot*, you can enter:
+> ✓ Tip: If you didn't see the prompt *Configuring Secure Boot*, you can enter:
 >
 > ```bash
 > sudo mokutil --import /var/lib/shim-signed/mok/MOK.der
@@ -95,16 +91,19 @@ You might see a prompt *Configuring Secure Boot* for the first time:
 >
 > and choose a password.
 
-4b. Reboot. Upon system reboot, you will be greeted with *Shin UEFI key management*. Press any key to perform MOK management.
+ii. Reboot. Upon system reboot, you will be greeted with *Shin UEFI key management*. Press any key to perform MOK management.
 
-4c. Choose `Enroll MOK`, `Continue`, `Yes` and enter the password you've chosen earlier. Finally, `Reboot`.
+iii. Choose `Enroll MOK`, `Continue`, `Yes` and enter the password you've chosen earlier. Finally, `Reboot`.
 
-5. Install libfprint:
+6. Install libfprint:
 ```bash
 ./installlib.sh
 ```
 
-6. GNOME and GDM have native support for fprint, so you don't need additional configuration on Ubuntu. Go to **Settings > System > Users > Fingerprint Login** and enroll your fingerprint.
+7. When you see the prompt *PAM configuration*, make sure **Fingerprint authentication** is ticked, and select `Ok`. You can press Tab key to go below.
+
+8. GNOME and GDM have native support for fprint, so you don't need additional configuration on Ubuntu. Go to **Settings > System > Users > Fingerprint Login** and enroll your fingerprint.  
+If you are using a distro that uses SDDM such as Kubuntu, visit [SDDM#Using_a_fingerprint_reader](https://wiki.archlinux.org/title/SDDM#Using_a_fingerprint_reader).
 
 ## Troubleshooting
 
@@ -159,6 +158,7 @@ apt remove libfprint-2-2
 
 To update, uninstall and reinstall. If only one of them received an update, you don't have to uninstall the one that didn't receive an update.
 
+> 🛈 Note: The scripts were updated. If you're uninstalling the older version (before 9 August 2025), visit [here](https://github.com/vobademi/FTEXX00-Ubuntu/tree/49c808374c75733278915bb87d19884efad16dc7#updating-and-uninstalling) for older commands.
 ### Uninstall the SPI module
 
 1. Gain root privileges:
@@ -173,18 +173,26 @@ modprobe -r focal_spi
 
 3. Remove from DKMS:
 ```bash
-dkms remove -m focal-spi -v 1.0.3 --all
+version_spi=$(dkms status | grep focaltech-spi-dkms \
+| sed -E 's/^[^/]+\/([^,]+).*/\1/' | tr -cd '0-9.') \
+&& sudo dkms remove -m focaltech-spi-dkms -v "$version_spi" --all
 ```
 
 4. Remove source directory:
 ```bash
-rm -rf /usr/src/focal-spi-1.0.3
+rm -rf /usr/src/focaltech-spi-dkms-*
 ```
 
 ### Uninstall libfprint
 
+1. Uninstall libfprint:
 ```bash
 sudo apt remove libfprint-2-2
+```
+
+2. Remove the hold to allow updates from official upstream (for uninstalling only):
+```bash
+sudo apt-mark unhold libfprint-2-2
 ```
 
 ## Questions
