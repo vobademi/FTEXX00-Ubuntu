@@ -2,7 +2,7 @@
 
 `installspi.sh` and `installlib.sh` are bash scripts to install the SPI module and the proprietary libfprint driver for FTE3600, FTE4800, FTE6600 and FTE6900 fingerprint readers on Ubuntu 24.04 LTS (officially supported) and other Debian-based distros.
 
-> ### For Arch Linux, visit corresponding AUR packages:
+> ### 🛈 For Arch Linux, install corresponding AUR packages:
 >
 > SPI module: [focaltech-spi-dkms](https://aur.archlinux.org/packages/focaltech-spi-dkms)
 >
@@ -69,7 +69,7 @@ chmod +x installlib.sh installspi.sh
 ./installspi.sh
 ```
 
-5. ***Configure for UEFI Secure Boot (Skip to step 6 if Secure Boot disabled)***
+5. ***Configure for UEFI Secure Boot (Skip to step 6 if Secure Boot disabled):***
 
 > ✓ Tip: This step is for initial installation only. If you're updating, you can skip this section!
 
