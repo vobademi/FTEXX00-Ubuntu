@@ -40,9 +40,9 @@ sudo chmod -R 644 /usr/src/focaltech-spi-dkms-$latest_spi/*
 sudo chmod 755 /usr/src/focaltech-spi-dkms-$latest_spi
 
 # Add, build and install the module
-sudo dkms add -m focaltech-spi-dkms -v 1.0.3
-sudo dkms build -m focaltech-spi-dkms -v 1.0.3
-sudo dkms install -m focaltech-spi-dkms -v 1.0.3
+sudo dkms add -m focaltech-spi-dkms -v $latest_spi
+sudo dkms build -m focaltech-spi-dkms -v $latest_spi
+sudo dkms install -m focaltech-spi-dkms -v $latest_spi
 
 # Start the module
 sudo modprobe focal_spi
