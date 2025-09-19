@@ -2,15 +2,7 @@
 
 `installspi.sh` and `installlib.sh` are bash scripts to install the SPI module and the proprietary libfprint driver for FTE3600, FTE4800, FTE6600 and FTE6900 fingerprint readers on Ubuntu 24.04 LTS (officially supported) and other Debian-based distros.
 
-> ### 🛈 For Arch Linux, install corresponding AUR packages:
->
-> SPI module: [focaltech-spi-dkms](https://aur.archlinux.org/packages/focaltech-spi-dkms)
->
-> libfprint: [libfprint-ftexx00](https://aur.archlinux.org/packages/libfprint-ftexx00)
-
-> ### ⚠ Warning
->
-> Debian Stable *bookworm* is not supported. See [Troubleshooting](#troubleshooting) for more details.
+Debian *bookworm* and below are **not** supported. See [troubleshooting](#troubleshooting) for Debian *trixie* specific fixes.
 
 ## Table of Contents
 
@@ -38,6 +30,10 @@
     + To fix this, the script deletes the conflicting file and adds `override.conf` which includes the changes from `fprintd.service` to `/debdir/etc/systemd/system/fprintd.service.d` directory. This is the recommended way to add override configurations by systemd.
 + The official package contains wrong *md5sums*. If the *md5sums* inside a Debian package is wrong, the package manager might detect a checksum mismatch and refuse to install the package.
     + To fix this, the scripts updates *md5sums* to ensure integrity checks pass.
+
+### focal_spi.c (optional)
+
+`focal_spi.c` is an alternative code for the SPI module, sent by @ctfdavis due to some devices give `init sensor error!` when the official code is used. See [troubleshooting](#troubleshooting) if you see `init sensor error!` after the installation.
 
 ## Installation
 
@@ -107,58 +103,75 @@ If you are using a distro that uses SDDM such as Kubuntu, visit [SDDM#Using_a_fi
 
 ## Troubleshooting
 
-### My PC stuck at login screen after installing libfprint
+### I get `init sensor error!` after installation
 
-This may occur on distros like Debian Stable *bookworm* that ship outdated packages. libfprint conflicts with some of these packages, possibly GDM, and prevents from logging in. To recover your PC:
+This was reported on some machines.
 
-1. Boot into a live environment (USB installation media).
+1. Uninstall the SPI module (See [updating and uninstalling](#updating-and-Uninstalling)).
 
-2. Gain root privileges:
+2. Copy `focal_spi.c` from this repository and overwrite the original one in *ubuntu_spi* you've cloned.
+
+3. Re-run `installspi.sh`.
+
+### Debian *trixie* specific fixes
+
+#### 1. Enrolling MOK key for UEFI Secure Boot
+
+Using `sudo mokutil --import /var/lib/shim-signed/mok/MOK.der` will not work because Debian doesn't store MOK keys in `/var/lib/shim-signed/mok`.
+
+1. Manually generate MOK key:
+
 ```bash
-sudo su
+sudo dkms generate_mok
+```
+2. Enroll it:
+
+```bash
+sudo mokutil --import /var/lib/dkms/mok.pub
 ```
 
-3. Use fdisk tool to list drives:
-```bash
-fdisk -l
-```
-Identify your partition that has your operating system installed by locating `Linux` or `Linux filesystem`. In this example, the drive is /dev/nvme0n1 and the partition that has the operating system installed is 2. So, the partition is **/dev/nvme0n1p2**:
-```bash
-Disk /dev/nvme0n1: 476.94 GiB, 512110190592 bytes, 1000215216 sectors
-Disk model: SAMSUNG MZVL2512HCJQ-00B00
-Units: sectors of 1 * 512 = 512 bytes
-Sector size (logical/physical): 512 bytes / 512 bytes
-I/O size (minimum/optimal): 512 bytes / 512 bytes
-Disklabel type: gpt
-Disk identifier: 6CE694C6-8CE1-41E1-98DA-677436595609
+3. Choose a password.
 
-Device           Start        End   Sectors   Size Type
-/dev/nvme0n1p1    2048    2203647   2201600     1G EFI System
-/dev/nvme0n1p2 2203648 1000212479 998008832 475.9G Linux filesystem
-```
+4. Reboot. Upon system reboot, you will be greeted with *Shin UEFI key management*. Press any key to perform MOK management.
 
-4. Mount the partition. Replace *partition* with the partition you've identified such as **nvme0n1p2**:
+5. Choose `Enroll MOK`, `Continue`, `Yes` and enter the password you've chosen earlier. Finally, `Reboot`.
+
+#### 2. Fixing package conflicts
+
+fprintd (1.94.5-2) in *trixie* packages conflicts due to it expects libfprint-2-2 (>= 1:1.94.9). The compatible fprintd packages can be installed from launchpad.
+
+fprintd 1.94.3-1: http://launchpadlibrarian.net/723052793/fprintd_1.94.3-1_amd64.deb  
+fprintd-doc 1.94.3-1: http://launchpadlibrarian.net/723052789/fprintd-doc_1.94.3-1_all.deb  
+libpam-fprintd 1.94.3-1: http://launchpadlibrarian.net/723052795/libpam-fprintd_1.94.3-1_amd64.deb
+
+1. Install the packages:
+
 ```bash
-mount /dev/partition /mnt
+sudo dpkg -i --force-overwrite fprintd_1.94.3-1_amd64.deb fprintd-doc_1.94.3-1_all.deb libpam-fprintd_1.94.3-1_amd64.deb
 ```
 
-5. Change root:
-```bash
-chroot /mnt
-```
+2. Hold the packages to prevent them from being overwritten by apt:
 
-6. Uninstall libfprint:
 ```bash
-apt remove libfprint-2-2
+sudo apt-mark hold fprintd fprintd-doc libpam-fprintd
 ```
-
-7. Reboot.
 
 ## Updating and Uninstalling
 
 To update, uninstall and reinstall. If only one of them received an update, you don't have to uninstall the one that didn't receive an update.
 
-> 🛈 Note: The scripts were updated. If you're uninstalling the older version (before 9 August 2025), visit [here](https://github.com/vobademi/FTEXX00-Ubuntu/tree/49c808374c75733278915bb87d19884efad16dc7#updating-and-uninstalling) for older commands.
+### Uninstall libfprint
+
+1. Uninstall libfprint:
+```bash
+sudo apt remove libfprint-2-2
+```
+
+2. Remove the hold to allow updates from official upstream (for uninstalling only):
+```bash
+sudo apt-mark unhold libfprint-2-2
+```
+
 ### Uninstall the SPI module
 
 1. Gain root privileges:
@@ -183,23 +196,11 @@ version_spi=$(dkms status | grep focaltech-spi-dkms \
 rm -rf /usr/src/focaltech-spi-dkms-*
 ```
 
-### Uninstall libfprint
-
-1. Uninstall libfprint:
-```bash
-sudo apt remove libfprint-2-2
-```
-
-2. Remove the hold to allow updates from official upstream (for uninstalling only):
-```bash
-sudo apt-mark unhold libfprint-2-2
-```
-
 ## Questions
 
 ### Why didn't you fork *ubuntu_spi* repository, publish the scripts alongside, or modify the files and serve them to us?
 
-Since *ftfpteams* did not add a license to their repository, their work is protected by copyright. Distributing or modifying their software without permission could potentially violate copyright law.  
+Since *ftfpteams* did not add a license to their repository, their libfprint package appears to be proprietary. Distributing or modifying their software without permission could potentially violate copyright law.  
 *(Clarification needed, I'm not a lawyer)*
 
 ## Copying
