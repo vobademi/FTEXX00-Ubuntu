@@ -1,5 +1,8 @@
 # FTEXX00-Ubuntu
 
+> [!WARNING]
+> [ubuntu_spi](https://github.com/ftfpteams/ubuntu_spi) has been taken down following a DMCA notice. The takedown was issued because *ftfpteams* did not disclose the source code for the libfprint package.
+
 `installspi.sh` and `installlib.sh` are bash scripts to install the SPI module and the proprietary libfprint driver for FTE3600, FTE4800, FTE6600 and FTE6900 fingerprint readers on Ubuntu 24.04 LTS (officially supported) and other Debian-based distros.
 
 Debian *bookworm* and below are **not** supported. See [troubleshooting](#troubleshooting) for Debian *trixie* specific fixes.
@@ -9,7 +12,7 @@ Debian *bookworm* and below are **not** supported. See [troubleshooting](#troubl
 - [Introduction](#introduction)
 - [Installation](#installation)
 - [Troubleshooting](#troubleshooting)
-- [Updating and Uninstalling](#updating-and-Uninstalling)
+- [Updating and Uninstalling](#updating-and-uninstalling)
 - [Questions](#questions)
 - [Copying](#copying)
 
@@ -31,26 +34,25 @@ Debian *bookworm* and below are **not** supported. See [troubleshooting](#troubl
 + The official package contains wrong *md5sums*. If the *md5sums* inside a Debian package is wrong, the package manager might detect a checksum mismatch and refuse to install the package.
     + To fix this, the scripts updates *md5sums* to ensure integrity checks pass.
 
-### focal_spi.c (optional)
+### alt/focal_spi.c (optional)
 
-`focal_spi.c` is an alternative code for the SPI module, sent by @ctfdavis due to some devices give `init sensor error!` when the official code is used. See [troubleshooting](#troubleshooting) if you see `init sensor error!` after the installation.
+`alt/focal_spi.c` is an alternative code for the SPI module, sent by @ctfdavis due to some devices give `init sensor error!` when the official code is used. See [troubleshooting](#troubleshooting) if you see `init sensor error!` after the installation.
 
 ## Installation
 
-1. Clone [*ubuntu_spi* repository](https://github.com/ftfpteams/ubuntu_spi):
+1. Clone this repository:
 ```bash
-git clone https://github.com/ftfpteams/ubuntu_spi.git
+git clone https://github.com/vobademi/FTEXX00-Ubuntu.git
 ```
 
-2. Copy `installspi.sh` and `installlib.sh` into the repository's root directory. The directory tree should look like this:
+2. Copy `libfprint-2-2_1.94.4+tod1-0ubuntu1~22.04.2_spi_20250112_amd64.deb` into the repository's root directory. [(?)](https://github.com/oneXfive/ubuntu_spi/blob/main/libfprint-2-2_1.94.4%2Btod1-0ubuntu1~22.04.2_spi_20250112_amd64.deb)  
+The directory tree should look like this:
 ```bash
-./ubuntu_spi
-├── focal_driver_open_test
+./FTEXX00-Ubuntu
 ├── focal_spi.c
 ├── installlib.sh
 ├── installspi.sh
 ├── libfprint-2-2_1.94.4+tod1-0ubuntu1~22.04.2_spi_20250112_amd64.deb
-├── libfprint-2-2_1.94.4+tod1-0ubuntu1~22.04.2_spi_amd64_20240620.deb
 ├── Makefile
 └── README.md
 ```
@@ -107,9 +109,9 @@ If you are using a distro that uses SDDM such as Kubuntu, visit [SDDM#Using_a_fi
 
 This was reported on some machines.
 
-1. Uninstall the SPI module (See [updating and uninstalling](#updating-and-Uninstalling)).
+1. Uninstall the SPI module (See [updating and uninstalling](#updating-and-uninstalling)).
 
-2. Copy `focal_spi.c` from this repository and overwrite the original one in *ubuntu_spi* you've cloned.
+2. Copy `focal_spi.c` from `./alt` to the root directory (overwrite the original one).
 
 3. Re-run `installspi.sh`.
 
@@ -160,6 +162,40 @@ sudo apt-mark hold fprintd fprintd-doc libpam-fprintd
 
 To update, uninstall and reinstall. If only one of them received an update, you don't have to uninstall the one that didn't receive an update.
 
+### Uninstall the SPI module
+
+1. Gain root privileges:
+```bash
+sudo su
+```
+
+2. Stop fprintd service:
+```bash
+systemctl stop fprintd.service
+```
+
+3. Unload the module:
+```bash
+modprobe -r focal_spi
+```
+
+4. Remove from DKMS:
+```bash
+version_spi=$(dkms status | grep focaltech-spi-dkms \
+| sed -E 's/^[^/]+\/([^,]+).*/\1/' | tr -cd '0-9.') \
+&& sudo dkms remove -m focaltech-spi-dkms -v "$version_spi" --all
+```
+
+5. Remove source directory:
+```bash
+rm -rf /usr/src/focaltech-spi-dkms-*
+```
+
+6. Start fprintd service (for updating):
+```bash
+systemctl start fprintd.service
+```
+
 ### Uninstall libfprint
 
 1. Uninstall libfprint:
@@ -172,36 +208,12 @@ sudo apt remove libfprint-2-2
 sudo apt-mark unhold libfprint-2-2
 ```
 
-### Uninstall the SPI module
-
-1. Gain root privileges:
-```bash
-sudo su
-```
-
-2. Unload the module:
-```bash
-modprobe -r focal_spi
-```
-
-3. Remove from DKMS:
-```bash
-version_spi=$(dkms status | grep focaltech-spi-dkms \
-| sed -E 's/^[^/]+\/([^,]+).*/\1/' | tr -cd '0-9.') \
-&& sudo dkms remove -m focaltech-spi-dkms -v "$version_spi" --all
-```
-
-4. Remove source directory:
-```bash
-rm -rf /usr/src/focaltech-spi-dkms-*
-```
-
 ## Questions
 
 ### Why didn't you fork *ubuntu_spi* repository, publish the scripts alongside, or modify the files and serve them to us?
 
-Since *ftfpteams* did not add a license to their repository, their libfprint package appears to be proprietary. Distributing or modifying their software without permission could potentially violate copyright law.  
-*(Clarification needed, I'm not a lawyer)*
+~~Since *ftfpteams* did not add a license to their repository, their libfprint package appears to be proprietary. Distributing or modifying their software without permission could potentially violate copyright law.~~  
+*ftfpteams* did not disclose the source code for the libfprint package, which is a violation of the LGPL copyright.
 
 ## Copying
 
