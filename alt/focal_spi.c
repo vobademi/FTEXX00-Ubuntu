@@ -15,7 +15,7 @@
 #include <linux/acpi.h>
 #include <linux/miscdevice.h>
 #include <linux/poll.h>
-#include <asm/unaligned.h>
+#include <linux/unaligned.h>
 
 #define INIT_SUCCESS 0x55AA
 
@@ -159,33 +159,83 @@ static void focal_spi_reset(struct focal_fp_data *data)
 	gpiod_set_value(data->gpiod_rst, 1);
 }
 
-
-
-/**
- * focal_spi_get_gpio_config - Get GPIO config from ACPI/DT
- * @data: focal_spi_fp_data pointer
+static void focal_spi_hw_reset(struct focal_fp_data *data) { /* If no reset GPIO provided, nothing to do */ if (!data || !data->gpiod_rst) return;
+	/*
+ * The gpiod API is logical: 1 == active, 0 == inactive.
+ * This respects GPIO_ACTIVE_LOW from ACPI/DT automatically.
+ * Do a clean reset pulse then leave the sensor out of reset.
  */
-static int focal_spi_get_gpio_config(struct focal_fp_data *data)
-{
-	int error;
-	struct device *dev;
-	struct gpio_desc *gpiod;
+/* Ensure inactive first */
+gpiod_set_value_cansleep(data->gpiod_rst, 0);
+usleep_range(5000, 6000);
+/* Assert reset */
+gpiod_set_value_cansleep(data->gpiod_rst, 1);
+usleep_range(5000, 6000);
+/* Deassert reset and wait for the sensor to come up */
+gpiod_set_value_cansleep(data->gpiod_rst, 0);
+msleep(50);
+}
 
-	dev = &data->spi->dev;
+static int focal_spi_configure_spi(struct focal_fp_data *data) { int ret; struct spi_device *spi = data->spi;
+	/* Conservative defaults; adjust per datasheet if needed */
+spi->mode = SPI_MODE_0;          /* many FocalTech parts use mode 0 */
+spi->bits_per_word = 8;
+if (!spi->max_speed_hz || spi->max_speed_hz > 1000000)
+	spi->max_speed_hz = 1000000;  /* start at 1 MHz */
+ret = spi_setup(spi);
+if (ret)
+	dev_err(&spi->dev, "spi_setup failed: %d\n", ret);
+else
+	dev_dbg(&spi->dev, "SPI set: mode=%u bpw=%u hz=%u\n",
+		spi->mode, spi->bits_per_word, spi->max_speed_hz);
+return ret;
+}
 
-	/* Get the reset lines GPIO pin number */
-	gpiod = devm_gpiod_get_index(dev, NULL, 0, GPIOD_OUT_LOW);
-	if (IS_ERR(gpiod)) {
-		error = PTR_ERR(gpiod);
+
+static int focal_spi_get_gpio_config(struct focal_fp_data *data) { int error; struct device *dev = &data->spi->dev; const char *which = NULL;
+	/* Prefer a properly named reset GPIO ("reset-gpios" in DT/ACPI _DSD) */
+data->gpiod_rst = devm_gpiod_get_optional(dev, "reset", GPIOD_OUT_LOW);
+if (IS_ERR(data->gpiod_rst)) {
+	error = PTR_ERR(data->gpiod_rst);
+	if (error != -EPROBE_DEFER)
+		dev_err(dev, "Failed to get reset GPIO: %d\n", error);
+	return error;
+}
+if (data->gpiod_rst)
+	which = "reset";
+/* Legacy fallbacks */
+if (!data->gpiod_rst) {
+	data->gpiod_rst = devm_gpiod_get_optional(dev, "power", GPIOD_OUT_LOW);
+	if (IS_ERR(data->gpiod_rst)) {
+		error = PTR_ERR(data->gpiod_rst);
 		if (error != -EPROBE_DEFER)
-			dev_err(dev,"Failed to get power GPIO 0: %d\n",error);
+			dev_err(dev, "Failed to get power GPIO: %d\n", error);
 		return error;
 	}
-
-	data->gpiod_rst = gpiod;
-
+	if (data->gpiod_rst)
+		which = "power";
+}
+if (!data->gpiod_rst) {
+	data->gpiod_rst = devm_gpiod_get_optional(dev, "enable", GPIOD_OUT_LOW);
+	if (IS_ERR(data->gpiod_rst)) {
+		error = PTR_ERR(data->gpiod_rst);
+		if (error != -EPROBE_DEFER)
+			dev_err(dev, "Failed to get enable GPIO: %d\n", error);
+		return error;
+	}
+	if (data->gpiod_rst)
+		which = "enable";
+}
+if (!data->gpiod_rst) {
+	dev_dbg(dev, "No reset/power GPIO provided\n");
 	return 0;
 }
+/* Ensure the line is inactive at request time */
+gpiod_set_value_cansleep(data->gpiod_rst, 0);
+dev_dbg(dev, "Using %s GPIO for reset/power (default inactive)\n", which);
+return 0;
+}
+
 
 static int focal_spi_create_touch_input(struct focal_fp_data *data)
 {
@@ -479,54 +529,42 @@ static ff_ctl_context_t ff_ctl_context = {
 	}, 0,
 };
 
-static int focal_spi_probe(struct spi_device *spi)
-{
-	struct focal_fp_data *fp_data;
-	int error;
-
-	LOGD("%s enter\n",__func__);
-
-	/* Set up SPI*/
-	spi->max_speed_hz=4*1000*1000;
-	spi->bits_per_word = 8;
-	/*if spi transfer err,change here spi->mode = SPI_MODE_0*/
-	spi->mode = SPI_MODE_0|SPI_CS_HIGH;
-	error = spi_setup(spi);
-	if (error)
-		return error;
-
-	fp_data = devm_kzalloc(&spi->dev, sizeof(struct focal_fp_data), GFP_KERNEL);
-	if (!fp_data)
-		return -ENOMEM;
-
-	fp_data->init=-1;
-
-	fp_data->spi = spi;
-	spi_set_drvdata(spi, fp_data);
-
-	error = focal_spi_get_gpio_config(fp_data);
-	if (error)
-		return error;
-
-	focal_spi_reset(fp_data);
-
-	error = focal_spi_create_touch_input(fp_data);
-	if (error)
-		return error;
-
+static int focal_spi_probe(struct spi_device *spi) { struct focal_fp_data *fp_data; int error;
+	LOGD("%s enter\n", __func__);
+fp_data = devm_kzalloc(&spi->dev, sizeof(*fp_data), GFP_KERNEL);
+if (!fp_data)
+	return -ENOMEM;
+fp_data->init = -1;
+fp_data->spi = spi;
+spi_set_drvdata(spi, fp_data);
+/* Get reset/power GPIOs (respects ACTIVE_LOW from firmware) */
+error = focal_spi_get_gpio_config(fp_data);
+if (error)
+	return error;
+/* Set safe SPI defaults and apply to controller */
+error = focal_spi_configure_spi(fp_data);
+if (error)
+	return error;
+/* Ensure the sensor is cleanly reset and then out of reset */
+focal_spi_hw_reset(fp_data);
+error = focal_spi_create_touch_input(fp_data);
+if (error)
+	return error;
+if (spi->irq) {
 	error = devm_request_threaded_irq(&spi->dev, spi->irq,
 					  NULL, focal_spi_irq_handler,
-					 IRQF_TRIGGER_HIGH| IRQF_ONESHOT,
+					  IRQF_ONESHOT | IRQF_TRIGGER_HIGH,
 					  "focal-irq", fp_data);
 	if (error)
 		return error;
-	fp_data->init=INIT_SUCCESS;
-	ff_ctl_context.fp_data=fp_data;
-
-	disable_irq(fp_data->spi->irq);
-	irq_is_disabled=1;
-
-	return 0;
+	disable_irq(spi->irq);
+	irq_is_disabled = 1;
+} else {
+	dev_warn(&spi->dev, "No IRQ configured; continuing without interrupts\n");
+}
+fp_data->init = INIT_SUCCESS;
+ff_ctl_context.fp_data = fp_data;
+return 0;
 }
 
 static int focal_spi_suspend(struct device *dev)
