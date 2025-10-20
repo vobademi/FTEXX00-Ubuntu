@@ -1,6 +1,6 @@
 # FTEXX00-Ubuntu
 
-> [!WARNING]
+> [!IMPORTANT]
 > [ubuntu_spi](https://github.com/ftfpteams/ubuntu_spi) has been taken down following a DMCA notice. The takedown was issued because *ftfpteams* did not disclose the source code for the libfprint package.
 
 `installspi.sh` and `installlib.sh` are bash scripts to install the SPI module and the proprietary libfprint driver for FTE3600, FTE4800, FTE6600 and FTE6900 fingerprint readers on Ubuntu 24.04 LTS (officially supported) and other Debian-based distros.
@@ -45,10 +45,13 @@ Debian *bookworm* and below are **not** supported. See [troubleshooting](#troubl
 git clone https://github.com/vobademi/FTEXX00-Ubuntu.git
 ```
 
-2. Copy `libfprint-2-2_1.94.4+tod1-0ubuntu1~22.04.2_spi_20250112_amd64.deb` into the repository's root directory. [(?)](https://github.com/oneXfive/ubuntu_spi/blob/main/libfprint-2-2_1.94.4%2Btod1-0ubuntu1~22.04.2_spi_20250112_amd64.deb)  
+2. Copy `libfprint-2-2_1.94.4+tod1-0ubuntu1~22.04.2_spi_20250112_amd64.deb` into the repository's root directory. [(?)](https://github.com/oneXfive/ubuntu_spi/blob/main/libfprint-2-2_1.94.4%2Btod1-0ubuntu1~22.04.2_spi_20250112_amd64.deb "?")  
 The directory tree should look like this:
 ```bash
 ./FTEXX00-Ubuntu
+├── alt
+│   └── focal_spi.c
+├── COPYING
 ├── focal_spi.c
 ├── installlib.sh
 ├── installspi.sh
@@ -69,7 +72,8 @@ chmod +x installlib.sh installspi.sh
 
 5. ***Configure for UEFI Secure Boot (Skip to step 6 if Secure Boot disabled):***
 
-> ✓ Tip: This step is for initial installation only. If you're updating, you can skip this section!
+> [!TIP]
+> This step is for initial installation only. If you're updating, you can skip this section.
 
 If you have Secure Boot enabled on your PC, you might see this line after running `installspi.sh`:
 
@@ -81,7 +85,8 @@ This means that you need to enroll a signing key to make the module trusted by S
 
 i. Select `Ok`. Enter a password for Secure Boot.
 
-> ✓ Tip: If you didn't see the prompt *Configuring Secure Boot*, you can enter:
+> [!TIP]
+> If you didn't see the prompt *Configuring Secure Boot*, you can enter:
 >
 > ```bash
 > sudo mokutil --import /var/lib/shim-signed/mok/MOK.der
@@ -108,6 +113,9 @@ If you are using a distro that uses SDDM such as Kubuntu, visit [SDDM#Using_a_fi
 ### I get `init sensor error!` after installation
 
 This was reported on some machines.
+
+> [!TIP]
+> `focal_spi.c` can be unified but I need feedback. You can try [this](https://github.com/vobademi/FTEXX00-Ubuntu/issues/1) and let me know if it works.
 
 1. Uninstall the SPI module (See [updating and uninstalling](#updating-and-uninstalling)).
 
