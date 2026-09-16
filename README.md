@@ -1,9 +1,12 @@
 # FTEXX00-Ubuntu
 
 > [!IMPORTANT]
+> ## See work in progress open source driver for FTE3600 at https://github.com/SamSeven777/libfprint-fte3600
+
+> [!IMPORTANT]
 > [ubuntu_spi](https://github.com/ftfpteams/ubuntu_spi) has been taken down following a DMCA notice. The takedown was issued because *ftfpteams* did not disclose the source code for the libfprint package.
 
-`installspi.sh` and `installlib.sh` are bash scripts to install the SPI module and the proprietary libfprint driver for FTE3600, FTE4800, FTE6600 and FTE6900 fingerprint readers on Ubuntu 24.04 LTS (officially supported) and other Debian-based distros.
+`installspi.sh` and `installlib.sh` are bash scripts to install the SPI module and the ~~proprietary~~ libfprint driver for FTE3600, FTE4800, FTE6600 and FTE6900 fingerprint readers on Ubuntu 24.04 LTS (officially supported) and other Debian-based distros.
 
 Debian *bookworm* and below are **not** supported. See [troubleshooting](#troubleshooting) for Debian *trixie* specific fixes.
 
@@ -12,7 +15,7 @@ Debian *bookworm* and below are **not** supported. See [troubleshooting](#troubl
 - [Introduction](#introduction)
 - [Installation](#installation)
 - [Troubleshooting](#troubleshooting)
-- [Updating and Uninstalling](#updating-and-uninstalling)
+- [Uninstalling](#uninstalling)
 - [Questions](#questions)
 - [Copying](#copying)
 
@@ -70,10 +73,10 @@ chmod +x installlib.sh installspi.sh
 ./installspi.sh
 ```
 
-5. ***Configure for UEFI Secure Boot (Skip to step 6 if Secure Boot disabled):***
+5. Configure for UEFI Secure Boot:
 
 > [!TIP]
-> This step is for initial installation only. If you're updating, you can skip this section.
+> If Secure Boot is disabled or you're reinstalling the SPI module, you can skip this section.
 
 If you have Secure Boot enabled on your PC, you might see this line after running `installspi.sh`:
 
@@ -103,21 +106,21 @@ iii. Choose `Enroll MOK`, `Continue`, `Yes` and enter the password you've chosen
 ./installlib.sh
 ```
 
-7. When you see the prompt *PAM configuration*, make sure **Fingerprint authentication** is ticked, and select `Ok`. You can press Tab key to go below.
+7. When you see the prompt *PAM configuration*, make sure **Fingerprint authentication** is ticked, and select `Ok`. You can press `Tab ↹` to go below.
 
 8. GNOME and GDM have native support for fprint, so you don't need additional configuration on Ubuntu. Go to **Settings > System > Users > Fingerprint Login** and enroll your fingerprint.  
 If you are using a distro that uses SDDM such as Kubuntu, visit [SDDM#Using_a_fingerprint_reader](https://wiki.archlinux.org/title/SDDM#Using_a_fingerprint_reader).
+
+> [!TIP]
+> Logging in using a fingerprint on GDM or SDDM does not unlock GNOME Keyring or KWallet, respectively. Using your password for the initial login might be a better option.
 
 ## Troubleshooting
 
 ### I get `init sensor error!` after installation
 
-This was reported on some machines.
+This was reported on several machines.
 
-> [!TIP]
-> `focal_spi.c` can be unified but I need feedback. You can try [this](https://github.com/vobademi/FTEXX00-Ubuntu/issues/1) and let me know if it works.
-
-1. Uninstall the SPI module (See [updating and uninstalling](#updating-and-uninstalling)).
+1. Uninstall the SPI module (See [uninstalling](#uninstalling)).
 
 2. Copy `focal_spi.c` from `./alt` to the root directory (overwrite the original one).
 
@@ -160,48 +163,35 @@ libpam-fprintd 1.94.3-1: http://launchpadlibrarian.net/723052795/libpam-fprintd_
 sudo dpkg -i --force-overwrite fprintd_1.94.3-1_amd64.deb fprintd-doc_1.94.3-1_all.deb libpam-fprintd_1.94.3-1_amd64.deb
 ```
 
-2. Hold the packages to prevent them from being overwritten by apt:
+2. Hold the packages to prevent them from being overwritten by `apt`:
 
 ```bash
 sudo apt-mark hold fprintd fprintd-doc libpam-fprintd
 ```
 
-## Updating and Uninstalling
-
-To update, uninstall and reinstall. If only one of them received an update, you don't have to uninstall the one that didn't receive an update.
+## Uninstalling
 
 ### Uninstall the SPI module
 
-1. Gain root privileges:
+1. Stop fprintd service:
 ```bash
-sudo su
+sudo systemctl stop fprintd.service
 ```
 
-2. Stop fprintd service:
+2. Unload the module:
 ```bash
-systemctl stop fprintd.service
+sudo modprobe -r focal_spi
 ```
 
-3. Unload the module:
+3. Remove from DKMS:
 ```bash
-modprobe -r focal_spi
+module=$(dkms status | grep 'focaltech-spi-dkms' \
+| cut -d',' -f1) && sudo dkms remove "$module" --all
 ```
 
-4. Remove from DKMS:
+4. Remove source directory:
 ```bash
-version_spi=$(dkms status | grep focaltech-spi-dkms \
-| sed -E 's/^[^/]+\/([^,]+).*/\1/' | tr -cd '0-9.') \
-&& sudo dkms remove -m focaltech-spi-dkms -v "$version_spi" --all
-```
-
-5. Remove source directory:
-```bash
-rm -rf /usr/src/focaltech-spi-dkms-*
-```
-
-6. Start fprintd service (for updating):
-```bash
-systemctl start fprintd.service
+sudo rm -rf /usr/src/focaltech-spi-dkms-*
 ```
 
 ### Uninstall libfprint
@@ -211,7 +201,7 @@ systemctl start fprintd.service
 sudo apt remove libfprint-2-2
 ```
 
-2. Remove the hold to allow updates from official upstream (for uninstalling only):
+2. Remove the hold to allow updates from official upstream:
 ```bash
 sudo apt-mark unhold libfprint-2-2
 ```
